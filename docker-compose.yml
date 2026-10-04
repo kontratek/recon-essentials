@@ -1,0 +1,147 @@
+# Vulmon Recon Essentials — the compose file you run (distribution copy, plan P-06 / W-15).
+#
+#   cp .env.example .env        # the install script does this and fills the password
+#   docker compose up -d        # db → web-migrator (one-shot) → engine-bootstrap (one-shot) → web + engine
+#   docker compose pull && docker compose up -d   # upgrade (the migrator runs again by itself)
+#
+# Two images, one release: the web image and the engine image both take RECON_VERSION from .env,
+# so an installation cannot run a web and an engine of different releases. The web also records
+# the exact engine build it was released with, and the dashboard says so if another one runs.
+#
+# Topology: PostgreSQL in its own container (never published), a one-shot migrator the others
+# wait for, the web UI (the only published port), and the engine as two long-running processes
+# — `recon analyzer` and `recon pipeline`. The pipeline gets NET_RAW so SYN and full-range port
+# scans and ICMP work; on a rootless runtime it still runs, with reduced scanning and a warning in
+# the dashboard (README → "Network privileges").
+name: recon-essentials
+
+x-engine: &engine
+  image: vulmon/recon-essentials-engine:${RECON_VERSION:?set RECON_VERSION in .env}
+  environment:
+    DB_HOST: db
+    DB_PORT: "5432"
+    DB_NAME: ${POSTGRES_DB:-recon}
+    DB_USERNAME: ${POSTGRES_USER:-recon}
+    DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    DB_SSLMODE: disable
+    DB_TIMEZONE: UTC
+    RECON_DATA_DIR: /opt/recon/data
+    RECON_LOG_LEVEL: ${LOG_LEVEL:-info}
+    # The engine also writes its logs to files here (one debug and one error file per service and
+    # day; it deletes files older than 14 days itself — no logrotate), so they survive the
+    # container. stdout keeps working for `docker compose logs`.
+    RECON_LOG_DIR: /var/log/recon
+  working_dir: /opt/recon
+  volumes:
+    - media:/opt/recon/data/media
+    # Set ESSENTIALS_ENGINE_LOG_DIR in .env to a host folder to read them directly.
+    - ${ESSENTIALS_ENGINE_LOG_DIR:-enginelogs}:/var/log/recon
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-recon}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recon} -d ${POSTGRES_DB:-recon}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  web-migrator:
+    image: vulmon/recon-essentials:${RECON_VERSION:?set RECON_VERSION in .env}
+    command: migrate
+    env_file:
+      - .env
+    volumes:
+      - webdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    image: vulmon/recon-essentials:${RECON_VERSION:?set RECON_VERSION in .env}
+    command: web
+    env_file:
+      - .env
+    ports:
+      - "${WEB_PORT:-8080}:3000"
+    volumes:
+      - webdata:/data
+      - media:/opt/recon/data/media
+      # The web's app / error / access logs, kept outside the container so an upgrade (which
+      # recreates it) does not delete them. Set ESSENTIALS_LOG_DIR in .env to a host folder to
+      # read them directly (on Linux it must be writable by uid 1001).
+      - ${ESSENTIALS_LOG_DIR:-weblogs}:/var/log/vrecon
+    depends_on:
+      db:
+        condition: service_healthy
+      web-migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/setup/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  # Seeds the technology catalog on a fresh database; idempotent, exits 0 when nothing to do.
+  engine-bootstrap:
+    <<: *engine
+    command: recon bootstrap
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      web-migrator:
+        condition: service_completed_successfully
+
+  analyzer:
+    <<: *engine
+    command: recon analyzer
+    # The engine finishes the job in hand after SIGTERM, up to 30 s. Docker's default grace period
+    # is 10 s, which would SIGKILL it mid-job on every upgrade and `docker compose down`.
+    stop_grace_period: 40s
+    depends_on:
+      engine-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "recon", "check"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  pipeline:
+    <<: *engine
+    command: recon pipeline
+    stop_grace_period: 40s
+    # Raw sockets for SYN and full-range port scans and ICMP (README → "Network privileges").
+    # Root is the image default; the capability is stated so a rootless runtime shows the gap.
+    # NET_RAW only — NET_ADMIN was never needed (gosurface, 2026-09-26) and is what the tested
+    # development compose and the README grant.
+    cap_add: [NET_RAW]
+    depends_on:
+      engine-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "recon", "check"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  pgdata:
+  webdata:
+  media:
+  weblogs:
+  enginelogs:
