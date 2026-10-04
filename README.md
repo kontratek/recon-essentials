@@ -1,30 +1,20 @@
 # Vulmon Recon Essentials
 
-Free, self-hosted external attack surface monitoring. Recon Essentials is the discovery and inventory part of [Vulmon Recon](https://recon.vulmon.com), packaged to run on your own machine with Docker. You add the domains and IP ranges you own. It then keeps discovering what is exposed — subdomains, IPs, open ports, websites, technologies, certificates — and shows changes as they happen.
+Free, self-hosted reconnaissance and monitoring for your external attack surface. Recon Essentials is the discovery and inventory part of [Vulmon Recon](https://recon.vulmon.com), packaged to run on your own machine with Docker. You add the domains and IP ranges you own. It then keeps discovering what is exposed — subdomains, IPs, open ports, websites, technologies, certificates — and shows changes as they happen.
 
 Everything it finds stays in a PostgreSQL database on your machine. It never uploads your assets.
 
 | | Unregistered | Registered (free) |
 |---|---|---|
+| Discovered assets (domains + IPs) | Unlimited | Unlimited |
 | In-scope assets (domains + IPs) | 15 | 50 |
 | Seeds | 45 | 150 |
 
 Registering is optional and takes an e-mail address and an activation code — Settings → License.
 
-## What is included, and what is not
+## What you get
 
-**Included.** The six inventory lists (domains, IPs, websites, technologies, ports, certificates), each searchable, filterable and exportable to CSV. Scope review, so you decide which domains and IPs are yours and get monitored. Scan configuration with policies, and a scan activity log. Certificate and TLS findings. Reports you generate when you want them. Notes, tags and owners. Search across everything found. In-app notifications. Accounts with roles, and two-factor authentication.
-
-**Not included.** These are in the hosted product and are absent from this edition:
-
-- **Vulnerability findings** — no CVE matching, no severity scoring, no issue tracking. This edition tells you what is exposed, not which software on it has a known vulnerability.
-- **Cloud account connectors** — no AWS, Azure, GCP or Cloudflare enumeration. Seeds are the only way to add targets.
-- **Integrations** — no Jira, Slack, Teams, ServiceNow, GitHub, GitLab or Zapier.
-- **The API** — no public API and no API keys.
-- **Single sign-on** — no SAML and no SCIM provisioning.
-- **Scheduled or e-mailed reports**, and **no outbound e-mail of any kind**. An installation sends no mail at all, so invitations and password resets are links you copy (see below).
-
-Nothing here is switched off and waiting to be unlocked. These parts are not in the image.
+The six inventory lists (domains, IPs, websites, technologies, ports, certificates), each searchable, filterable and exportable to CSV. Scope review, so you decide which domains and IPs are yours and get monitored. Scan configuration with policies, and a scan activity log. Certificate and TLS findings. Reports you generate when you want them. Notes, tags and owners. Search across everything found. In-app notifications. Accounts with roles, and two-factor authentication.
 
 ## Requirements
 
@@ -45,7 +35,7 @@ Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rena
 ## First steps
 
 1. **Add seeds** — Scan configuration → Seeds: your domains, IPs or ranges. Discovery starts within minutes.
-2. **Review scope** — Asset Review lists what was found; confirm what is yours. Only in-scope assets are scanned in depth and count towards the limit.
+2. **Review scope** — Asset Review lists what was found; confirm what is yours. Only in-scope assets are monitored continuously and count towards the limit.
 3. **Invite colleagues** — Settings → Users. Invitations are links you copy and send; the installation sends no e-mail.
 4. **Register (optional)** — Settings → License, to raise the limits to 50 in-scope assets / 150 seeds.
 
@@ -156,6 +146,18 @@ prints a reset link valid for 60 minutes.
 bash install.sh uninstall            # containers removed, data kept
 PURGE=1 bash install.sh uninstall    # containers and data volumes removed
 ```
+
+## The hosted product
+
+Vulmon Recon, the hosted product, adds a managed service and vulnerability intelligence:
+
+- Vulnerability findings: CVE matching, severity scoring and issue tracking
+- Cloud connectors for AWS, Azure, GCP and Cloudflare accounts
+- Integrations: Jira, Slack, Teams, ServiceNow, GitHub, GitLab and Zapier
+- The public API, single sign-on and scheduled email reports
+- Nothing to install or maintain
+
+Plans and prices: https://recon.vulmon.com/pricing
 
 ## Full documentation
 
