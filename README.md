@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/kontratek/recon-essentials/main/ins
 irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 | iex
 ```
 
-Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask for the address people will open in the browser, pull the images and start everything. Then open `http://<your-address>:8080/setup` and create the first administrator.
+Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask which address and port people will use to open it, pull the images and start everything. Then open `http://<your-address>:8080/setup` and create the first administrator.
 
 Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD` and `APP_URL` (`RECON_VERSION` already names the current release), then `docker compose up -d`.
 

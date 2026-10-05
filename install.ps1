@@ -7,8 +7,8 @@
 # The Windows twin of install.sh: the same steps, the same files and the same .env. It needs Docker
 # Desktop running Linux containers (Docker Compose v2 ships with it). What it does: checks Docker,
 # creates .\recon-essentials (or INSTALL_DIR), fetches docker-compose.yml + .env.example (and itself,
-# for later upgrades), generates the database password, asks for the address people will open,
-# pulls the images and starts everything. It writes nothing outside that folder.
+# for later upgrades), generates the database password, asks which address and port people will
+# use to open it, pulls the images and starts everything. It writes nothing outside that folder.
 #
 # $env:RECON_VERSION = 'x.y.z' pins that release instead of the current one, for install and upgrade.
 # It is the same number .env carries: one release number for both images, the web and the engine.
@@ -118,6 +118,24 @@ $reconBody = {
     return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
   }
 
+  # Splits what was typed into an address and an optional port, forgiving the forms people actually
+  # type: a scheme, a path, a port glued on. 2026-10-05: "127.0.0.1:8080" without http:// went into
+  # APP_URL as it was, and every sign-in then failed with a 500 (Invalid base URL).
+  function Split-Address([string]$Text) {
+    $value = ($Text.Trim()) -replace '^https?://', ''
+    $value = ($value -split '/', 2)[0]
+    $parts = $value -split ':', 2
+    $port = ''
+    if ($parts.Count -gt 1) { $port = $parts[1] }
+    return @{ Address = $parts[0]; Port = $port }
+  }
+  function Test-HostName([string]$Name) { return ($Name -match '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$') }
+  function Test-Port([string]$Value) {
+    if ($Value -notmatch '^\d{1,5}$') { return $false }
+    $number = [int]$Value
+    return ($number -ge 1 -and $number -le 65535)
+  }
+
   # The address of the adapter that holds the default route; empty when there is none.
   function Get-LanIp {
     try {
@@ -186,18 +204,43 @@ $reconBody = {
       if (-not (Test-Path -LiteralPath $envPath)) {
         Write-Text $envPath (Read-Text (Join-Path $InstallDir '.env.example'))
         Set-EnvLine 'POSTGRES_PASSWORD' (New-Password)
-        $lan = Get-LanIp
-        $guess = if ($lan) { "http://${lan}:8080" } else { 'http://localhost:8080' }
+        $address = Get-LanIp
+        if (-not $address) { $address = 'localhost' }
+        $port = '8080'
+        if ($env:WEB_PORT -and (Test-Port $env:WEB_PORT)) { $port = $env:WEB_PORT }
         # With no console at all (a provisioning tool, -NonInteractive) Read-Host throws and the
-        # guess stands; APP_URL is in .env.
+        # defaults stand; both are in .env.
         try {
-          $answer = Read-Host "Address people will open in the browser [$guess]"
-          if ($answer) { $guess = $answer.Trim() }
+          Write-Host ''
+          Write-Host 'Which address will people use to open Recon Essentials?'
+          Write-Host '  - the IP address or host name of this computer, so other computers can reach it'
+          Write-Host '  - localhost, if you will only use it on this computer'
+          while ($true) {
+            $answer = Read-Host "Address [$address]"
+            if (-not $answer -or -not $answer.Trim()) { break }
+            $split = Split-Address $answer
+            if (Test-HostName $split.Address) {
+              $address = $split.Address
+              if (Test-Port $split.Port) { $port = $split.Port }
+              break
+            }
+            Write-Host '  That is not an IP address or a host name. Examples: 192.168.1.20, recon.example.local, localhost'
+          }
+          while ($true) {
+            $answer = Read-Host "Port [$port]"
+            if (-not $answer -or -not $answer.Trim()) { break }
+            if (Test-Port $answer.Trim()) { $port = $answer.Trim(); break }
+            Write-Host '  The port is a number from 1 to 65535.'
+          }
         }
         catch { }
-        Set-EnvLine 'APP_URL' $guess
+        # APP_URL is always built here, never copied from the answer, and WEB_PORT follows it: the
+        # published port and the address in APP_URL must be the same port.
+        $appUrl = "http://${address}:$port"
+        Set-EnvLine 'APP_URL' $appUrl
+        Set-EnvLine 'WEB_PORT' $port
         if ($Version -ne 'latest') { Set-EnvLine 'RECON_VERSION' $Version }
-        Write-Host "created .env (database password generated; APP_URL=$guess)"
+        Write-Host "created .env (database password generated; APP_URL=$appUrl)"
       }
       else {
         Write-Host 'keeping the existing .env'

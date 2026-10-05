@@ -8,8 +8,8 @@
 #
 # What it does: checks Docker + Compose v2, creates ./recon-essentials (or INSTALL_DIR), fetches
 # docker-compose.yml + .env.example (and itself, for later upgrades), generates the database
-# password, asks for the address people will open, pulls the images and starts everything. It
-# writes nothing outside that folder.
+# password, asks which address and port people will use to open it, pulls the images and starts
+# everything. It writes nothing outside that folder.
 #
 # RECON_VERSION=x.y.z pins that release instead of the current one, for install and upgrade.
 # It is the same number .env carries: one release number for both images, the web and the engine.
@@ -48,6 +48,19 @@ random_hex() {
 lan_ip() {
   hostname -I 2>/dev/null | awk '{print $1}' || true
 }
+
+# Splits what was typed into ADDRESS and ADDRESS_PORT, forgiving the forms people actually type: a
+# scheme, a path, a port glued on. 2026-10-05: "127.0.0.1:8080" without http:// went into APP_URL
+# as it was, and every sign-in then failed with a 500 (Invalid base URL).
+parse_address() {
+  local value
+  value="$(printf '%s' "${1:-}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s#^[Hh][Tt][Tt][Pp][Ss]?://##')"
+  value="${value%%/*}"
+  ADDRESS="${value%%:*}"
+  if [ "$value" != "$ADDRESS" ]; then ADDRESS_PORT="${value#*:}"; else ADDRESS_PORT=""; fi
+}
+valid_host() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'; }
+valid_port() { printf '%s' "$1" | grep -Eq '^[0-9]{1,5}$' && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
 
 # Sets KEY=value in .env, appending the line when it is missing. `-i.bak` keeps BSD sed (macOS) happy.
 set_env() {
@@ -112,19 +125,44 @@ case "$cmd" in
     if [ ! -f .env ]; then
       cp .env.example .env
       sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(random_hex)/" .env && rm -f .env.bak
-      guess="http://$(lan_ip):8080"; [ "$guess" = "http://:8080" ] && guess="http://localhost:8080"
-      # Under `curl … | bash` stdin is the script itself, so the question goes to the terminal.
-      # With no terminal at all (CI, a provisioning tool) the guess stands; APP_URL is in .env.
+      host="$(lan_ip)"; [ -n "$host" ] || host=localhost
+      port="${WEB_PORT:-8080}"; valid_port "$port" || port=8080
+      # Under `curl … | bash` stdin is the script itself, so the questions go to the terminal.
+      # With no terminal at all (CI, a provisioning tool) the defaults stand; both are in .env.
       if (: </dev/tty) 2>/dev/null; then
-        printf 'Address people will open in the browser [%s]: ' "$guess" >/dev/tty
-        read -r answer </dev/tty || true
-        [ -n "${answer:-}" ] && guess="$answer"
+        printf '\nWhich address will people use to open Recon Essentials?\n' >/dev/tty
+        printf '  - the IP address or host name of this computer, so other computers can reach it\n' >/dev/tty
+        printf '  - localhost, if you will only use it on this computer\n' >/dev/tty
+        while :; do
+          printf 'Address [%s]: ' "$host" >/dev/tty
+          read -r answer </dev/tty || answer=""
+          [ -n "$answer" ] || break
+          parse_address "$answer"
+          if valid_host "$ADDRESS"; then
+            host="$ADDRESS"
+            if valid_port "$ADDRESS_PORT"; then port="$ADDRESS_PORT"; fi
+            break
+          fi
+          printf '  That is not an IP address or a host name. Examples: 192.168.1.20, recon.example.local, localhost\n' >/dev/tty
+        done
+        while :; do
+          printf 'Port [%s]: ' "$port" >/dev/tty
+          read -r answer </dev/tty || answer=""
+          answer="$(printf '%s' "$answer" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+          [ -n "$answer" ] || break
+          if valid_port "$answer"; then port="$answer"; break; fi
+          printf '  The port is a number from 1 to 65535.\n' >/dev/tty
+        done
       fi
-      sed -i.bak "s#^APP_URL=.*#APP_URL=$guess#" .env && rm -f .env.bak
+      # APP_URL is always built here, never copied from the answer, and WEB_PORT follows it: the
+      # published port and the address in APP_URL must be the same port.
+      app_url="http://$host:$port"
+      sed -i.bak "s#^APP_URL=.*#APP_URL=$app_url#" .env && rm -f .env.bak
+      set_env WEB_PORT "$port"
       if [ "$VERSION" != "latest" ]; then
         set_env RECON_VERSION "$VERSION"
       fi
-      echo "created .env (database password generated; APP_URL=$guess)"
+      echo "created .env (database password generated; APP_URL=$app_url)"
     else
       echo "keeping the existing .env"
     fi
