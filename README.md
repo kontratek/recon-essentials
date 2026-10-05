@@ -22,68 +22,90 @@ The six inventory lists (domains, IPs, websites, technologies, ports, certificat
 - 2 CPU cores and 4 GB RAM; 10 GB disk to start with
 - Outbound access to the targets listed under **Network activity** below; one inbound port for the web UI
 
-## Install
+## Install, and start it later
 
-**Linux and macOS** — in a terminal (on Windows, Git Bash and WSL work too):
+Run the command in a terminal, in the folder where the installation should go. It creates a `recon-essentials` folder there.
+
+**Linux and macOS** (on Windows, Git Bash and WSL work too):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kontratek/recon-essentials/main/recon-essentials.sh | bash
 ```
 
-**Windows** — in PowerShell, with Docker Desktop running Linux containers (its default):
+**Windows**, in PowerShell, with Docker Desktop running Linux containers (its default):
 
 ```powershell
-irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/recon-essentials.ps1 | iex
 ```
 
-Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask which address and port people will use to open it, pull the images and start everything. When they finish, they print the address to open; create the first administrator there.
+It generates the database password and asks one question: who will use Recon Essentials.
 
-**The address question.** Press Enter to keep `localhost`: then only this computer can open Recon Essentials. To open it from other computers too, type this computer's IP address or host name. Invitation and password-reset links use this address, so a fixed IP address or a host name works best. It can be changed later (see below).
+- **Only this computer** (local access): press Enter. The port then listens on `127.0.0.1` only, so nothing else on the network can reach it.
+- **Other computers on the network too** (remote access): the port listens on `0.0.0.0`, and the command asks for the address the other computers will open. That is this computer's IP address or host name, for example `192.168.1.20` or `recon.example.local`. Invitation and password-reset links use it, so a fixed IP address or a host name works best.
 
-Without a terminal (a provisioning tool), give the answers in advance: `RECON_ADDRESS=192.168.1.20 RECON_PORT=8080 bash install.sh`, or in PowerShell `-Address` and `-Port`. `RECON_NONINTERACTIVE=1` accepts the defaults.
+It takes port 8080, or the next free one when 8080 is in use. Then it downloads the images, starts everything and opens the browser at the page where you create the first administrator. It writes nothing outside the `recon-essentials` folder. In a system or temporary folder (the Windows folder, Program Files, a temp folder or a drive root; on Linux and macOS `/`, `/tmp`, `/usr` and the like), it installs into your home folder instead and says so.
+
+**After that,** start Recon Essentials from its folder: `.\recon-essentials.cmd` on Windows (or double-click it), `./recon-essentials.sh` on Linux and macOS. It starts what is stopped and opens the browser. It never deletes data, and it downloads only an image that is missing. When a new release is out, it asks whether to upgrade first (Enter means yes). When the installed release is no longer supported, it upgrades before it starts. If an upgrade cannot finish, for example without internet, the installed release starts as it was. The install command does the same when it runs in that folder or the one above it, or anywhere while Docker still knows the installation.
+
+Without a terminal (a provisioning tool), give the answers in advance: `RECON_ADDRESS=192.168.1.20` (`localhost` for this computer only), `RECON_PORT=8080`, and `INSTALL_DIR=/opt/recon` for another folder. In PowerShell, set the same names with `$env:` first. `RECON_NONINTERACTIVE=1` accepts the defaults. `RECON_VERSION=x.y.z` installs a specific release.
 
 **Prefer to read the script before it runs?** Download it, read it, then run it:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.sh && less install.sh && bash install.sh
+curl -fsSLO https://raw.githubusercontent.com/kontratek/recon-essentials/main/recon-essentials.sh && less recon-essentials.sh && bash recon-essentials.sh
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 -OutFile install.ps1; notepad install.ps1
-powershell -ExecutionPolicy Bypass -File install.ps1
+irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/recon-essentials.ps1 -OutFile recon-essentials.ps1; notepad recon-essentials.ps1
+powershell -ExecutionPolicy Bypass -File recon-essentials.ps1
 ```
 
-Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD`, `APP_URL` (with `http://`, for example `http://192.168.1.20:8080`) and `WEB_PORT` (the same port as in `APP_URL`); `RECON_VERSION` already names the current release. Then run `docker compose up -d`.
+Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD`, `APP_URL` (with `http://`, for example `http://192.168.1.20:8080`), `WEB_PORT` (the same port as in `APP_URL`) and `WEB_BIND` (`127.0.0.1` for this computer only, `0.0.0.0` for the network too); `RECON_VERSION` already names the current release. Then run `docker compose up -d`.
 
-## Start, stop and open
+**The first release's script** was called `install.sh` (`install.ps1` on Windows). Those names still work: they run `recon-essentials.sh` (`recon-essentials.ps1`) with the same arguments.
 
-Recon Essentials runs in Docker, in the background: closing the terminal does not stop it, and it starts again on its own whenever Docker starts. On Windows and macOS that means Docker Desktop must start when you sign in (Docker Desktop → Settings → General). On Windows, double-click **Open Recon Essentials.cmd** in the installation folder (on macOS, **Open Recon Essentials.command**): it starts Recon Essentials if it is stopped and opens it in the browser.
+## What to do when
 
-In the installation folder:
-
-```sh
-docker compose stop     # stop it
-docker compose up -d    # start it again
-docker compose ps       # see what runs
-```
-
-Do not run the install command again in another folder: it would make a second installation that tries to use the same data. The installer refuses that and names the folder of the existing installation.
-
-## Change the address or the port
-
-When the address changes (the computer got a new IP address, or other computers should open it now), run this in the installation folder. It asks again and restarts the web:
+Recon Essentials runs in Docker, in the background. "Start it" below means: run the script in the installation folder.
 
 ```bash
-bash install.sh address                                           # Linux and macOS
+./recon-essentials.sh            # start it and open it
+./recon-essentials.sh stop       # stop it
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 address      # Windows
+.\recon-essentials.cmd           # start it and open it (or double-click it)
+.\recon-essentials.cmd stop      # stop it
 ```
 
-By hand: set `APP_URL` and `WEB_PORT` in `.env` to the same port, then run `docker compose up -d`.
+| What happened | What it does | What to do |
+|---|---|---|
+| The terminal was closed | Keeps running | Nothing |
+| The computer restarted | Starts again when Docker starts | Nothing. On Windows and macOS, let Docker Desktop start when you sign in (Docker Desktop → Settings → General) |
+| Docker Desktop is closed | Does not run | Start it: the script starts Docker Desktop and waits for it |
+| Docker Desktop is open but does not answer | Does not run | Start it: the script offers to restart Docker Desktop |
+| It was stopped with `stop` | Stays stopped, also after a restart | Start it |
+| A container or an image was deleted | The data is still there | Start it: the script downloads the same release again (this needs internet) |
+| The installation folder was deleted | The data is still there, but the database password was in `.env` | Put the folder back from a backup (at least `.env`), then start it |
+| The data volumes were deleted, or Docker was reset or uninstalled | The data is gone | Restore a backup (below) |
 
-**Opening it from other computers.** A firewall on this computer can block the port. On Windows, allow **Docker Desktop Backend** for private networks in Windows Defender Firewall. On Linux, open the port, for example `sudo ufw allow 8080/tcp` or `sudo firewall-cmd --add-port=8080/tcp --permanent && sudo firewall-cmd --reload`.
+The command refuses to make a second installation over the data of an existing one. When Docker still knows the existing one, it names its folder. A second, separate copy needs its own name: put `COMPOSE_PROJECT_NAME=recon-essentials-2` before the command (in PowerShell, first run `$env:COMPOSE_PROJECT_NAME = 'recon-essentials-2'`). It then lives in `./recon-essentials-2` and takes the next free port.
+
+## Who can open it, and the address
+
+To change who can open it, or the address other computers use (the computer got a new IP address, for example), run this in the installation folder. It asks the question again and restarts the web:
+
+```bash
+./recon-essentials.sh address           # Linux and macOS
+```
+
+```powershell
+.\recon-essentials.cmd address          # Windows
+```
+
+By hand: set `APP_URL`, `WEB_PORT` (the same port) and `WEB_BIND` in `.env`, then run `docker compose up -d`.
+
+**Opening it from other computers.** `WEB_BIND` decides who can reach the port: `127.0.0.1` is this computer only, `0.0.0.0` is the network too. On Linux, Docker publishes the port past ufw, so ufw rules neither open nor close it. On Windows, a firewall can still block it: allow **Docker Desktop Backend** for private networks in Windows Defender Firewall. Until the first administrator is created, anyone who can open the address can create it, so create it right after installing.
 
 ## First steps
 
@@ -134,23 +156,23 @@ Registering sends your e-mail address, the installation id and the product versi
 
 ## Upgrade
 
-Run from the installation folder (the installer leaves both installers there).
+Starting it offers the upgrade when a new release is out. To upgrade at another time, run this in the installation folder:
 
 Linux and macOS:
 
 ```bash
-bash install.sh upgrade                        # the current release
-RECON_VERSION=0.2.0 bash install.sh upgrade    # a specific release
+./recon-essentials.sh upgrade                        # the current release
+RECON_VERSION=0.2.0 ./recon-essentials.sh upgrade    # a specific release
 ```
 
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 upgrade                    # the current release
-powershell -ExecutionPolicy Bypass -File install.ps1 upgrade -Version 0.2.0     # a specific release
+.\recon-essentials.cmd upgrade                     # the current release
+.\recon-essentials.cmd upgrade -Version 0.2.0      # a specific release
 ```
 
-Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again; the upgrade moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), adds any setting the release introduced to `.env` (your values stay as they are), updates the installers, pulls the images and restarts. By hand: change `RECON_VERSION`, then run `docker compose pull` and `docker compose up -d`.
+Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again. The upgrade first downloads the new images; if that fails, nothing is changed. Then it moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), adds any setting the release introduced to `.env` (your values stay as they are), updates the scripts and restarts. By hand: change `RECON_VERSION`, then run `docker compose pull` and `docker compose up -d`.
 
 If the engine that runs is not the build this release was tested with, the dashboard says so; run the upgrade to put both images on the same release again.
 
@@ -185,7 +207,7 @@ docker compose exec -T db rm /tmp/recon.dump
 docker compose up -d    # the migrator brings the restored schema to this release, then everything starts
 ```
 
-**Where the data is.** Not in the installation folder: it lives in Docker volumes named after the installation, `recon-essentials_pgdata` (the database: inventory, findings, users), `recon-essentials_webdata` (generated secrets and uploaded profile images) and `recon-essentials_media` (favicons and screenshots), plus two log volumes. On Windows and macOS, Docker Desktop keeps them inside its own virtual disk. They survive restarts, a restart of Docker Desktop or the computer, and upgrades. They are deleted by `uninstall` with `PURGE=1` (`-Purge` in PowerShell), by `docker compose down -v`, by deleting them in Docker Desktop, by Docker Desktop's "Clean / Purge data" and "Reset to factory defaults", and by uninstalling Docker Desktop. The installation folder holds `docker-compose.yml`, the installers and `.env` — keep `.env`: the database password is in it.
+**Where the data is.** Not in the installation folder: it lives in Docker volumes named after the installation, `recon-essentials_pgdata` (the database: inventory, findings, users), `recon-essentials_webdata` (generated secrets and uploaded profile images) and `recon-essentials_media` (favicons and screenshots), plus two log volumes. On Windows and macOS, Docker Desktop keeps them inside its own virtual disk. They survive restarts, a restart of Docker Desktop or the computer, and upgrades. They are deleted by `uninstall` with `PURGE=1` (`-Purge` in PowerShell), by `docker compose down -v`, by deleting them in Docker Desktop, by Docker Desktop's "Clean / Purge data" and "Reset to factory defaults", and by uninstalling Docker Desktop. The installation folder holds `docker-compose.yml`, the scripts (and `recon-essentials.cmd` on Windows) and `.env` — keep `.env`: the database password is in it.
 
 ## Logs
 
@@ -212,20 +234,20 @@ prints a reset link valid for 60 minutes.
 Linux and macOS:
 
 ```bash
-bash install.sh uninstall            # containers removed, data kept
-PURGE=1 bash install.sh uninstall    # containers and data volumes removed
+./recon-essentials.sh uninstall            # containers removed, data kept
+PURGE=1 ./recon-essentials.sh uninstall    # containers and data volumes removed
 ```
 
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 uninstall            # containers removed, data kept
-powershell -ExecutionPolicy Bypass -File install.ps1 uninstall -Purge     # containers and data volumes removed
+.\recon-essentials.cmd uninstall            # containers removed, data kept
+.\recon-essentials.cmd uninstall -Purge     # containers and data volumes removed
 ```
 
 ## Troubleshooting
 
-**"Docker Desktop does not answer"** (or `docker ps` prints `Internal Server Error`): Docker Desktop is open but its engine has stopped. Restart Docker Desktop — right-click the Docker icon in the taskbar, Quit Docker Desktop, start it again — and wait until it shows that the engine is running. If that does not help on Windows, run this in PowerShell; it restarts only Docker Desktop's own virtual machine:
+**"Docker Desktop does not answer"** (or `docker ps` prints `Internal Server Error`): Docker Desktop is open but its engine has stopped. Start Recon Essentials with the script in its folder: it offers to restart Docker Desktop. By hand: right-click the Docker icon in the taskbar, Quit Docker Desktop, start it again, and wait until it shows that the engine is running. If that does not help on Windows, run this in PowerShell; it restarts only Docker Desktop's own virtual machine:
 
 ```powershell
 Get-Process 'Docker Desktop','com.docker.backend','com.docker.build','com.docker.extensions' -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -236,7 +258,7 @@ Start-Process 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
 
 A current Docker Desktop has fewer of these failures than an old one; keep it updated.
 
-**Sign-in fails with a server error:** check `APP_URL` in `.env`. It must start with `http://` (or `https://` behind a reverse proxy) and name the port, for example `http://192.168.1.20:8080`. `install.sh address` (`install.ps1 address`) writes it correctly.
+**Sign-in fails with a server error:** check `APP_URL` in `.env`. It must start with `http://` (or `https://` behind a reverse proxy) and name the port, for example `http://192.168.1.20:8080`. `./recon-essentials.sh address` (`.\recon-essentials.cmd address`) writes it correctly.
 
 **The web does not become healthy:** `docker compose logs web-migrator web` shows why.
 

@@ -1,8 +1,8 @@
 # Vulmon Recon Essentials — the compose file you run (distribution copy, plan P-06 / W-15).
 #
-#   cp .env.example .env        # the install script does this and fills the password
+#   cp .env.example .env        # recon-essentials.sh / .ps1 do this and fill the password
 #   docker compose up -d        # db → web-migrator (one-shot) → engine-bootstrap (one-shot) → web + engine
-#   docker compose pull && docker compose up -d   # upgrade (the migrator runs again by itself)
+#   ./recon-essentials.sh upgrade      # upgrade: moves RECON_VERSION, pulls, restarts (the migrator runs again)
 #
 # Two images, one release: the web image and the engine image both take RECON_VERSION from .env,
 # so an installation cannot run a web and an engine of different releases. The web also records
@@ -72,7 +72,9 @@ services:
     env_file:
       - .env
     ports:
-      - "${WEB_PORT:-8080}:3000"
+      # WEB_BIND 127.0.0.1 publishes the port to this computer alone; 0.0.0.0 to the network too.
+      # Docker publishes it past a host firewall such as ufw, so the address is what limits it.
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:3000"
     volumes:
       - webdata:/data
       - media:/opt/recon/data/media
