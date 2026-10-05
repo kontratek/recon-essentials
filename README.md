@@ -24,11 +24,19 @@ The six inventory lists (domains, IPs, websites, technologies, ports, certificat
 
 ## Install
 
+**Linux and macOS** — in a terminal (on Windows, Git Bash and WSL work too):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.sh | bash
 ```
 
-The script creates a `recon-essentials` folder in the current directory, generates the database password, asks for the address people will open in the browser, pulls the images and starts everything. Then open `http://<your-address>:8080/setup` and create the first administrator.
+**Windows** — in PowerShell, with Docker Desktop running Linux containers (its default):
+
+```powershell
+irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 | iex
+```
+
+Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask for the address people will open in the browser, pull the images and start everything. Then open `http://<your-address>:8080/setup` and create the first administrator.
 
 Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD` and `APP_URL` (`RECON_VERSION` already names the current release), then `docker compose up -d`.
 
@@ -81,14 +89,23 @@ Registering sends your e-mail address, the installation id and the product versi
 
 ## Upgrade
 
-Run from the installation folder (the installer leaves a copy of `install.sh` there):
+Run from the installation folder (the installer leaves a copy of itself there).
+
+Linux and macOS:
 
 ```bash
 bash install.sh upgrade                        # the current release
 RECON_VERSION=0.2.0 bash install.sh upgrade    # a specific release
 ```
 
-Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again; the upgrade moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), pulls the images and restarts. By hand: change `RECON_VERSION`, then `docker compose pull && docker compose up -d`.
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 upgrade                                  # the current release
+$env:RECON_VERSION = '0.2.0'; powershell -ExecutionPolicy Bypass -File install.ps1 upgrade    # a specific release
+```
+
+Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again; the upgrade moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), pulls the images and restarts. By hand: change `RECON_VERSION`, then run `docker compose pull` and `docker compose up -d`.
 
 If the engine that runs is not the build this release was tested with, the dashboard says so; run the upgrade to put both images on the same release again.
 
@@ -98,23 +115,28 @@ The migrator container upgrades the database schema before the new web version s
 
 Run from the installation folder. A backup is two files: the database dump and the generated secrets file. Two-factor secrets are encrypted with a key from that file, so a database restored next to freshly generated secrets locks every two-factor user out.
 
-```bash
-# backup — keep the two files together (-T: no terminal, so the binary dump is written unchanged)
-docker compose exec -T db pg_dump -U recon -Fc recon > recon-$(date +%F).dump
-docker compose cp web:/data/secrets.env recon-$(date +%F).secrets.env
+The commands below are the same in bash and in PowerShell. None of them sends the dump through the shell: the database writes it inside its container and `docker compose cp` copies it out, because Windows PowerShell re-encodes binary output that passes through `>` and the dump would be damaged without any warning.
+
+```sh
+# backup — keep the two files together; rename them with the date if you keep more than one
+docker compose exec -T db pg_dump -U recon -Fc -f /tmp/recon.dump recon
+docker compose cp db:/tmp/recon.dump recon.dump
+docker compose exec -T db rm /tmp/recon.dump
+docker compose cp web:/data/secrets.env recon.secrets.env
 # SQL access
 docker compose exec db psql -U recon -d recon
 ```
 
-Restore into a fresh installation (after `install.sh`) or into the one the backup came from, from its folder:
+Restore into a fresh installation or into the one the backup came from, from its folder, with the two files in it:
 
-```bash
+```sh
 docker compose stop web analyzer pipeline
 # the secrets file goes back first; the web runs as uid 1001 and must be able to read it
-docker compose run --rm -T --no-deps --user root --entrypoint sh web \
-  -c 'cat > /data/secrets.env && chown 1001:1001 /data/secrets.env && chmod 600 /data/secrets.env' \
-  < recon-YYYY-MM-DD.secrets.env
-docker compose exec -T db pg_restore -U recon -d recon --clean --if-exists < recon-YYYY-MM-DD.dump
+docker compose cp recon.secrets.env web:/data/secrets.env
+docker compose run --rm --no-deps --user root --entrypoint sh web -c "chown 1001:1001 /data/secrets.env && chmod 600 /data/secrets.env"
+docker compose cp recon.dump db:/tmp/recon.dump
+docker compose exec -T db pg_restore -U recon -d recon --clean --if-exists /tmp/recon.dump
+docker compose exec -T db rm /tmp/recon.dump
 docker compose up -d    # the migrator brings the restored schema to this release, then everything starts
 ```
 
@@ -142,9 +164,18 @@ prints a reset link valid for 60 minutes.
 
 ## Uninstall
 
+Linux and macOS:
+
 ```bash
 bash install.sh uninstall            # containers removed, data kept
 PURGE=1 bash install.sh uninstall    # containers and data volumes removed
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 uninstall                         # containers removed, data kept
+$env:PURGE = '1'; powershell -ExecutionPolicy Bypass -File install.ps1 uninstall       # containers and data volumes removed
 ```
 
 ## The hosted product
@@ -161,7 +192,7 @@ Plans and prices: https://recon.vulmon.com/pricing
 
 ## Full documentation
 
-The long-form guides live at **https://recon.vulmon.com/docs/essentials** — what is and is not included, the outbound connection list with the reasoning behind each entry, network privileges, access and transport, and where the data sits. This README stays the short operational copy that ships with the image, so an installation with no internet access still has what it needs.
+The long-form guides live at **https://recon.vulmon.com/docs/essentials** — what is and is not included, the outbound connection list with the reasoning behind each entry, network privileges, access and transport, and where the data sits. This README is the short operational copy; keep it with your backups if the installation has no internet access.
 
 ## Support and terms
 
