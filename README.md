@@ -36,13 +36,58 @@ curl -fsSL https://raw.githubusercontent.com/kontratek/recon-essentials/main/ins
 irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 | iex
 ```
 
-Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask which address and port people will use to open it, pull the images and start everything. Then open `http://<your-address>:8080/setup` and create the first administrator.
+Both scripts do the same thing: they create a `recon-essentials` folder in the current directory, generate the database password, ask which address and port people will use to open it, pull the images and start everything. When they finish, they print the address to open; create the first administrator there.
 
-Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD` and `APP_URL` (`RECON_VERSION` already names the current release), then `docker compose up -d`.
+**The address question.** Press Enter to keep `localhost`: then only this computer can open Recon Essentials. To open it from other computers too, type this computer's IP address or host name. Invitation and password-reset links use this address, so a fixed IP address or a host name works best. It can be changed later (see below).
+
+Without a terminal (a provisioning tool), give the answers in advance: `RECON_ADDRESS=192.168.1.20 RECON_PORT=8080 bash install.sh`, or in PowerShell `-Address` and `-Port`. `RECON_NONINTERACTIVE=1` accepts the defaults.
+
+**Prefer to read the script before it runs?** Download it, read it, then run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.sh && less install.sh && bash install.sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/kontratek/recon-essentials/main/install.ps1 -OutFile install.ps1; notepad install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Manual install: copy `docker-compose.yml` and `.env.example` into a folder, rename `.env.example` to `.env`, set `POSTGRES_PASSWORD`, `APP_URL` (with `http://`, for example `http://192.168.1.20:8080`) and `WEB_PORT` (the same port as in `APP_URL`); `RECON_VERSION` already names the current release. Then run `docker compose up -d`.
+
+## Start, stop and open
+
+Recon Essentials runs in Docker, in the background: closing the terminal does not stop it, and it starts again on its own whenever Docker starts. On Windows and macOS that means Docker Desktop must start when you sign in (Docker Desktop → Settings → General). On Windows, double-click **Open Recon Essentials.cmd** in the installation folder (on macOS, **Open Recon Essentials.command**): it starts Recon Essentials if it is stopped and opens it in the browser.
+
+In the installation folder:
+
+```sh
+docker compose stop     # stop it
+docker compose up -d    # start it again
+docker compose ps       # see what runs
+```
+
+Do not run the install command again in another folder: it would make a second installation that tries to use the same data. The installer refuses that and names the folder of the existing installation.
+
+## Change the address or the port
+
+When the address changes (the computer got a new IP address, or other computers should open it now), run this in the installation folder. It asks again and restarts the web:
+
+```bash
+bash install.sh address                                           # Linux and macOS
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 address      # Windows
+```
+
+By hand: set `APP_URL` and `WEB_PORT` in `.env` to the same port, then run `docker compose up -d`.
+
+**Opening it from other computers.** A firewall on this computer can block the port. On Windows, allow **Docker Desktop Backend** for private networks in Windows Defender Firewall. On Linux, open the port, for example `sudo ufw allow 8080/tcp` or `sudo firewall-cmd --add-port=8080/tcp --permanent && sudo firewall-cmd --reload`.
 
 ## First steps
 
-1. **Add seeds** — Scan configuration → Seeds: your domains, IPs or ranges. Discovery starts within minutes.
+1. **Add seeds** — Scan configuration → Seeds: your domains, IPs or ranges. Discovery then starts on its own.
 2. **Review scope** — Asset Review lists what was found; confirm what is yours. Only in-scope assets are monitored continuously and count towards the limit.
 3. **Invite colleagues** — Settings → Users. Invitations are links you copy and send; the installation sends no e-mail.
 4. **Register (optional)** — Settings → License, to raise the limits to 50 in-scope assets / 150 seeds.
@@ -89,7 +134,7 @@ Registering sends your e-mail address, the installation id and the product versi
 
 ## Upgrade
 
-Run from the installation folder (the installer leaves a copy of itself there).
+Run from the installation folder (the installer leaves both installers there).
 
 Linux and macOS:
 
@@ -101,11 +146,11 @@ RECON_VERSION=0.2.0 bash install.sh upgrade    # a specific release
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 upgrade                                  # the current release
-$env:RECON_VERSION = '0.2.0'; powershell -ExecutionPolicy Bypass -File install.ps1 upgrade    # a specific release
+powershell -ExecutionPolicy Bypass -File install.ps1 upgrade                    # the current release
+powershell -ExecutionPolicy Bypass -File install.ps1 upgrade -Version 0.2.0     # a specific release
 ```
 
-Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again; the upgrade moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), pulls the images and restarts. By hand: change `RECON_VERSION`, then run `docker compose pull` and `docker compose up -d`.
+Recon Essentials runs as two images, the web and the engine, and every release is one tested pair of them. `.env` names the release in one line, `RECON_VERSION`, and both images take that number, so they cannot come from different releases. A plain `docker compose pull` fetches the same release again; the upgrade moves `RECON_VERSION` to the new release, replaces `docker-compose.yml` if the release changed it (your previous copy is kept beside it), adds any setting the release introduced to `.env` (your values stay as they are), updates the installers, pulls the images and restarts. By hand: change `RECON_VERSION`, then run `docker compose pull` and `docker compose up -d`.
 
 If the engine that runs is not the build this release was tested with, the dashboard says so; run the upgrade to put both images on the same release again.
 
@@ -140,11 +185,11 @@ docker compose exec -T db rm /tmp/recon.dump
 docker compose up -d    # the migrator brings the restored schema to this release, then everything starts
 ```
 
-Data lives in three Docker volumes: `pgdata` (the database), `media` (favicons and screenshots) and `webdata` (generated secrets and uploaded profile images).
+**Where the data is.** Not in the installation folder: it lives in Docker volumes named after the installation, `recon-essentials_pgdata` (the database: inventory, findings, users), `recon-essentials_webdata` (generated secrets and uploaded profile images) and `recon-essentials_media` (favicons and screenshots), plus two log volumes. On Windows and macOS, Docker Desktop keeps them inside its own virtual disk. They survive restarts, a restart of Docker Desktop or the computer, and upgrades. They are deleted by `uninstall` with `PURGE=1` (`-Purge` in PowerShell), by `docker compose down -v`, by deleting them in Docker Desktop, by Docker Desktop's "Clean / Purge data" and "Reset to factory defaults", and by uninstalling Docker Desktop. The installation folder holds `docker-compose.yml`, the installers and `.env` — keep `.env`: the database password is in it.
 
 ## Logs
 
-`docker compose logs` shows what the containers print. The same logs are also kept as files, so an upgrade does not delete them: the web's in the `weblogs` volume and the engine's in `enginelogs` (one debug and one error file per service and day). Old files are deleted automatically: after 14 days, except the web's access log, which is kept for 30. To read them directly, set `ESSENTIALS_LOG_DIR` and `ESSENTIALS_ENGINE_LOG_DIR` in `.env` to host folders and run `docker compose up -d`.
+`docker compose logs` shows what the containers print. The same logs are also kept as files, so an upgrade does not delete them: the web's in the `weblogs` volume and the engine's in `enginelogs` (one debug and one error file per service and day). Old files are deleted automatically: after 14 days, except the web's access log, which is kept for 30. To read them directly, set `ESSENTIALS_LOG_DIR` and `ESSENTIALS_ENGINE_LOG_DIR` in `.env` to host folders and run `docker compose up -d` — for example `./logs/web` and `./logs/engine`, or `C:/recon/logs/web` on Windows. On Linux the web's folder must be writable by uid 1001.
 
 If the engine crashes, its trace is kept in the same volume as `crash-pipeline.log`, `crash-analyzer.log` or `crash-bootstrap.log`. These files are not swept after 14 days (they roll over at 4 MB), and each start writes the engine version first. Send the file with a support request: we can read a trace for the version it names. It can be copied out even while the service is down:
 
@@ -174,9 +219,26 @@ PURGE=1 bash install.sh uninstall    # containers and data volumes removed
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 uninstall                         # containers removed, data kept
-$env:PURGE = '1'; powershell -ExecutionPolicy Bypass -File install.ps1 uninstall       # containers and data volumes removed
+powershell -ExecutionPolicy Bypass -File install.ps1 uninstall            # containers removed, data kept
+powershell -ExecutionPolicy Bypass -File install.ps1 uninstall -Purge     # containers and data volumes removed
 ```
+
+## Troubleshooting
+
+**"Docker Desktop does not answer"** (or `docker ps` prints `Internal Server Error`): Docker Desktop is open but its engine has stopped. Restart Docker Desktop — right-click the Docker icon in the taskbar, Quit Docker Desktop, start it again — and wait until it shows that the engine is running. If that does not help on Windows, run this in PowerShell; it restarts only Docker Desktop's own virtual machine:
+
+```powershell
+Get-Process 'Docker Desktop','com.docker.backend','com.docker.build','com.docker.extensions' -ErrorAction SilentlyContinue | Stop-Process -Force
+wsl --terminate docker-desktop
+wsl --terminate docker-desktop-data
+Start-Process 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
+```
+
+A current Docker Desktop has fewer of these failures than an old one; keep it updated.
+
+**Sign-in fails with a server error:** check `APP_URL` in `.env`. It must start with `http://` (or `https://` behind a reverse proxy) and name the port, for example `http://192.168.1.20:8080`. `install.sh address` (`install.ps1 address`) writes it correctly.
+
+**The web does not become healthy:** `docker compose logs web-migrator web` shows why.
 
 ## The hosted product
 
