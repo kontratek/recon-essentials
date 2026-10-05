@@ -217,7 +217,7 @@ $reconBody = {
   function Update-InstallFile([string]$Name) {
     $target = Join-Path $InstallDir $Name
     try { Get-DistFile $Name "$target.new"; Move-Item -LiteralPath "$target.new" -Destination $target -Force }
-    catch { Remove-Item -LiteralPath "$target.new" -ErrorAction SilentlyContinue }
+    catch { Remove-Item -LiteralPath "$target.new" -Force -ErrorAction SilentlyContinue }
   }
 
   function Test-EnvLine([string]$Key) {
@@ -508,7 +508,10 @@ $reconBody = {
     $composePath = Join-Path $InstallDir 'docker-compose.yml'
     $freshExample = "$examplePath.new"
     $freshCompose = "$composePath.new"
-    Remove-Item -LiteralPath $freshExample, $freshCompose -ErrorAction SilentlyContinue
+    # -Force on every removal here: PowerShell on Linux and macOS treats a dot-file as hidden and
+    # will not remove a hidden item without it, so .env.example.new stayed behind (release gate,
+    # 2026-10-05). Windows has no such rule, which is why only the Linux run caught it.
+    Remove-Item -LiteralPath $freshExample, $freshCompose -Force -ErrorAction SilentlyContinue
     try {
       Get-DistFile '.env.example' $freshExample
       $target = $Version
@@ -533,13 +536,13 @@ $reconBody = {
       finally { $env:RECON_VERSION = $previous }
     }
     catch {
-      Remove-Item -LiteralPath $freshExample, $freshCompose -ErrorAction SilentlyContinue
+      Remove-Item -LiteralPath $freshExample, $freshCompose -Force -ErrorAction SilentlyContinue
       throw
     }
     Move-Item -LiteralPath $freshExample -Destination $examplePath -Force
     $kept = ''
     if (Test-Path -LiteralPath $freshCompose) {
-      if ((Get-FileHash -LiteralPath $freshCompose).Hash -eq (Get-FileHash -LiteralPath $composePath).Hash) { Remove-Item -LiteralPath $freshCompose }
+      if ((Get-FileHash -LiteralPath $freshCompose).Hash -eq (Get-FileHash -LiteralPath $composePath).Hash) { Remove-Item -LiteralPath $freshCompose -Force }
       else {
         $kept = "docker-compose.yml.$(Get-Date -Format 'yyyyMMddHHmmss').bak"
         Move-Item -LiteralPath $composePath -Destination (Join-Path $InstallDir $kept)

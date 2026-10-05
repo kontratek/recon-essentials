@@ -20,7 +20,7 @@ The six inventory lists (domains, IPs, websites, technologies, ports, certificat
 
 - Docker Engine 24+ with Docker Compose v2 (Linux server, or Docker Desktop on macOS / Windows)
 - 2 CPU cores and 4 GB RAM; 10 GB disk to start with
-- Outbound access to the targets listed under **Network activity** below; one inbound port for the web UI
+- Outbound access to the targets listed under **Network activity** below, plus GitHub and Docker Hub while installing and upgrading; one inbound port for the web UI
 
 ## Install, and start it later
 
@@ -109,8 +109,8 @@ By hand: set `APP_URL`, `WEB_PORT` (the same port) and `WEB_BIND` in `.env`, the
 
 ## First steps
 
-1. **Add seeds** — Scan configuration → Seeds: your domains, IPs or ranges. Discovery then starts on its own.
-2. **Review scope** — Asset Review lists what was found; confirm what is yours. Only in-scope assets are monitored continuously and count towards the limit.
+1. **Add seeds** — Scan configuration → Seeds: your domains, IPs or ranges. Add only assets you own or are authorized to assess. Discovery then starts on its own.
+2. **Review scope** — Asset review lists what was found; confirm what is yours. Only in-scope assets are monitored continuously and count towards the limit.
 3. **Invite colleagues** — Settings → Users. Invitations are links you copy and send; the installation sends no e-mail.
 4. **Register (optional)** — Settings → License, to raise the limits to 50 in-scope assets / 150 seeds.
 
@@ -135,6 +135,8 @@ The complete list of outbound connections the product makes. Your own assets are
 **Inbound:** Only the web UI port you publish in docker-compose (default 8080).
 
 <!-- egress:end -->
+
+The scripts that install, start and upgrade Recon Essentials run on the computer itself, so they are not in the table. Installing and upgrading download the scripts, `docker-compose.yml` and `.env.example` from `raw.githubusercontent.com`, and the images (the web, the engine and PostgreSQL) from Docker Hub. Starting downloads nothing, unless an image is missing; its upgrade offer reads the latest release from the signed manifest above, which the engine has already fetched.
 
 ## Network privileges
 
