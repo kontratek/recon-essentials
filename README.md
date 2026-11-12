@@ -1,6 +1,6 @@
 # Vulmon Recon Essentials
 
-Free, self-hosted reconnaissance and monitoring for your external attack surface. Recon Essentials is the discovery and inventory part of [Vulmon Recon](https://recon.vulmon.com), packaged to run on your own machine with Docker. You add the domains and IP ranges you own. It then keeps discovering what is exposed — subdomains, IPs, open ports, websites, technologies, certificates — and shows changes as they happen.
+Free, self-hosted attack surface management: reconnaissance and monitoring for your external attack surface. Recon Essentials is the discovery and inventory part of [Vulmon Recon](https://recon.vulmon.com), packaged to run on your own machine with Docker. You add the domains and IP ranges you own. It then keeps discovering what is exposed — subdomains, IPs, open ports, websites, technologies, certificates — and shows changes as they happen.
 
 Everything it finds stays in a PostgreSQL database on your machine. It never uploads your assets.
 
@@ -130,7 +130,7 @@ The complete list of outbound connections the product makes. Your own assets are
 | recon.vulmon.com | 443 | Registration with Vulmon — once, from Settings → License, made by the web server. No call is made unless you register. | Web server | Only if you register |
 | recon.vulmon.com | 443 | Signed product manifest: revocation list, minimum supported versions, the latest release (for the update notice), announcements. Contains nothing about your installation. Tolerates short outages. | Engine | No |
 | WHOIS servers (IANA, registries, registrars, whois.cymru.com) | 43/tcp | Domain and IP WHOIS records. whois.cymru.com tells which network (ASN) an IP address belongs to. Switching it off leaves the WHOIS fields as "not measured". | Engine | Yes — Scan configuration → Network activity |
-| RDAP servers (rdap.db.ripe.net and the other registries) | 443 | RDAP lookups (the HTTPS successor of WHOIS). Switching it off leaves the RDAP-sourced fields as "not measured". | Engine | Yes — Scan configuration → Network activity |
+| RDAP servers (data.iana.org, rdap.db.ripe.net, pubapi.registry.google and the other registries) | 443 | RDAP lookups (the HTTPS successor of WHOIS), also used for domain extensions that publish no WHOIS server. Switching it off leaves the RDAP-sourced fields as "not measured". | Engine | Yes — Scan configuration → Network activity |
 
 **Inbound:** Only the web UI port you publish in docker-compose (default 8080).
 
@@ -266,7 +266,7 @@ A current Docker Desktop has fewer of these failures than an old one; keep it up
 
 ## The hosted product
 
-Vulmon Recon, the hosted product, adds a managed service and vulnerability intelligence:
+Vulmon Recon, the hosted product, adds:
 
 - Vulnerability findings: CVE matching, severity scoring and issue tracking
 - Cloud connectors for AWS, Azure, GCP and Cloudflare accounts
